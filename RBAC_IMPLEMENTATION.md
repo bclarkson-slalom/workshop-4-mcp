@@ -224,11 +224,21 @@ Use any of the test credentials listed above.
 
 ### Required Changes for Production
 
-1. **Environment Variables**
-   ```python
-   # Replace in auth.py
-   SECRET_KEY = os.getenv("SECRET_KEY")  # Generate with: openssl rand -hex 32
+1. **Environment Variables** ✅ **IMPLEMENTED**
+   ```bash
+   # Generate a secure secret key
+   openssl rand -hex 32
+   
+   # Set environment variable
+   export JWT_SECRET_KEY="your-generated-key-here"
+   export TOKEN_EXPIRE_MINUTES=480
    ```
+   
+   The application now:
+   - Loads `JWT_SECRET_KEY` from environment variables
+   - Auto-generates a random key in development with warning
+   - Never hardcodes secrets in source code
+   - See [.env.example](.env.example) for configuration template
 
 2. **Database Integration**
    - Replace in-memory `users_db` with PostgreSQL/MySQL

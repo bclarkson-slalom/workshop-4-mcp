@@ -8,16 +8,24 @@ for the Slalom Capabilities Management System.
 from datetime import datetime, timedelta
 from typing import Optional, List
 from enum import Enum
+import os
+import secrets
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
-# Security configuration
-SECRET_KEY = "slalom-capabilities-secret-key-change-in-production"  # TODO: Use environment variable
+# Security configuration - Load from environment variables
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    # Generate a secure random key for development only
+    # In production, this MUST be set via environment variable
+    SECRET_KEY = secrets.token_urlsafe(32)
+    print("⚠️  WARNING: Using auto-generated JWT secret. Set JWT_SECRET_KEY environment variable for production!")
+
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 hours
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("TOKEN_EXPIRE_MINUTES", "480"))  # Default: 8 hours
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
