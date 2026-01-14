@@ -7,12 +7,48 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <!-- Login Modal -->
+    <div id="login-modal" class="modal">
+      <div class="modal-content">
+        <div class="login-header">
+          <img src="https://colby-timm.github.io/images/byte-teacher.png" alt="Byte mascot" class="login-mascot" />
+          <h2>Slalom Login</h2>
+          <p class="login-subtitle">Capabilities Management System</p>
+        </div>
+        <form id="login-form">
+          <div class="form-group">
+            <label for="login-email">Email:</label>
+            <input type="email" id="login-email" required placeholder="your-email@slalom.com" autocomplete="username" />
+          </div>
+          <div class="form-group">
+            <label for="login-password">Password:</label>
+            <input type="password" id="login-password" required placeholder="Enter your password" autocomplete="current-password" />
+          </div>
+          <button type="submit" class="btn-primary">Login</button>
+          <div id="login-error" class="error-message"></div>
+        </form>
+        <div class="test-credentials">
+          <p><strong>Test Credentials:</strong></p>
+          <ul>
+            <li>partner@slalom.com / partner123</li>
+            <li>consultant@slalom.com / consultant123</li>
+            <li>viewer@slalom.com / viewer123</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
     <header>
       <div class="header-content">
         <img src="https://colby-timm.github.io/images/byte-teacher.png" alt="Byte mascot" class="mascot" />
         <div class="header-text">
           <h1>Slalom Capabilities Management</h1>
           <h2>Consulting Expertise Platform</h2>
+        </div>
+        <div id="user-info" class="user-info">
+          <span id="user-name" class="user-name"></span>
+          <span id="user-role" class="user-role"></span>
+          <button id="logout-btn" class="btn-secondary">Logout</button>
         </div>
       </div>
     </header>

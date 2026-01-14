@@ -5,14 +5,37 @@ A FastAPI application that enables Slalom consultants to register their
 capabilities and manage consulting expertise across the organization.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
+from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.middleware.cors import CORSMiddleware
+from datetime import timedelta
 import os
 from pathlib import Path
 
-app = FastAPI(title="Slalom Capabilities Management API",
-              description="API for managing consulting capabilities and consultant expertise")
+# Import authentication modules
+from auth import (
+    User, Token, UserRole,
+    authenticate_user, create_access_token,
+    get_current_user, require_permission, has_permission,
+    ACCESS_TOKEN_EXPIRE_MINUTES
+)
+
+app = FastAPI(
+    title="Slalom Capabilities Management API",
+    description="API for managing consulting capabilities and consultant expertise with RBAC",
+    version="2.0.0"
+)
+
+# Add CORS middleware for frontend access
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Restrict in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Mount the static files directory
 current_dir = Path(__file__).parent
@@ -110,17 +133,91 @@ def root():
     return RedirectResponse(url="/static/index.html")
 
 
+@app.post("/token", response_model=Token)
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    """
+    OAuth2 compatible login endpoint
+    
+    Test credentials:
+    - partner@slalom.com / partner123
+    - director@slalom.com / director123
+    - manager@slalom.com / manager123
+    - consultant@slalom.com / consultant123
+    - viewer@slalom.com / viewer123
+    """
+    user = authenticate_user(form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.email, "role": user.role},
+        expires_delta=access_token_expires
+    )
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "email": user.email,
+            "role": user.role,
+            "full_name": user.full_name,
+            "market": user.market
+        }
+    }
+
+
+@app.get("/auth/me")
+async def get_current_user_info(current_user: User = Depends(get_current_user)):
+    """Get current authenticated user information"""
+    return {
+        "email": current_user.email,
+        "role": current_user.role,
+        "full_name": current_user.full_name,
+        "market": current_user.market,
+        "last_login": current_user.last_login
+    }
+
+
 @app.get("/capabilities")
-def get_capabilities():
+async def get_capabilities(current_user: User = Depends(get_current_user)):
+    """Get all capabilities - requires authentication"""
     return capabilities
 
 
 @app.post("/capabilities/{capability_name}/register")
-def register_for_capability(capability_name: str, email: str):
-    """Register a consultant for a capability"""
+async def register_for_capability(
+    capability_name: str,
+    email: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Register a consultant for a capability
+    
+    - Consultants can only register themselves
+    - Senior Managers and above can register anyone
+    """
     # Validate capability exists
     if capability_name not in capabilities:
         raise HTTPException(status_code=404, detail="Capability not found")
+
+    # Check permissions
+    if current_user.role == UserRole.CONSULTANT:
+        # Consultants can only register themselves
+        if email != current_user.email:
+            raise HTTPException(
+                status_code=403,
+                detail="Consultants can only register themselves"
+            )
+    elif not has_permission(current_user, "write:registrations") and not has_permission(current_user, "write:all_registrations"):
+        raise HTTPException(
+            status_code=403,
+            detail="Insufficient permissions to register consultants"
+        )
 
     # Get the specific capability
     capability = capabilities[capability_name]
@@ -134,12 +231,30 @@ def register_for_capability(capability_name: str, email: str):
 
     # Add consultant
     capability["consultants"].append(email)
-    return {"message": f"Registered {email} for {capability_name}"}
+    return {
+        "message": f"Registered {email} for {capability_name}",
+        "registered_by": current_user.email
+    }
 
 
 @app.delete("/capabilities/{capability_name}/unregister")
-def unregister_from_capability(capability_name: str, email: str):
-    """Unregister a consultant from a capability"""
+async def unregister_from_capability(
+    capability_name: str,
+    email: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Unregister a consultant from a capability
+    
+    - Requires Senior Manager role or higher
+    """
+    # Check permissions - only managers and above can unregister
+    if not has_permission(current_user, "delete:all_registrations"):
+        raise HTTPException(
+            status_code=403,
+            detail="Only Senior Managers and above can unregister consultants"
+        )
+    
     # Validate capability exists
     if capability_name not in capabilities:
         raise HTTPException(status_code=404, detail="Capability not found")
@@ -156,4 +271,7 @@ def unregister_from_capability(capability_name: str, email: str):
 
     # Remove consultant
     capability["consultants"].remove(email)
-    return {"message": f"Unregistered {email} from {capability_name}"}
+    return {
+        "message": f"Unregistered {email} from {capability_name}",
+        "unregistered_by": current_user.email
+    }

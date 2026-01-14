@@ -28,9 +28,29 @@ header {
 .header-content {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: 20px;
   flex-wrap: wrap;
+  padding: 0 20px;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 10px 20px;
+  border-radius: 8px;
+}
+
+.user-name {
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+.user-role {
+  font-size: 0.9rem;
+  opacity: 0.9;
 }
 
 .mascot {
@@ -286,6 +306,159 @@ footer {
 }
 
 /* Responsive design improvements */
+
+/* Login Modal Styles */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background-color: white;
+  padding: 40px;
+  border-radius: 12px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+  max-width: 450px;
+  width: 90%;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.login-mascot {
+  width: 80px;
+  height: 80px;
+  margin-bottom: 15px;
+}
+
+.login-header h2 {
+  color: #003d7a;
+  margin-bottom: 5px;
+}
+
+.login-subtitle {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+#login-form .form-group {
+  margin-bottom: 20px;
+}
+
+#login-form label {
+  display: block;
+  margin-bottom: 8px;
+  color: #333;
+  font-weight: 500;
+}
+
+#login-form input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: border-color 0.3s;
+}
+
+#login-form input:focus {
+  outline: none;
+  border-color: #0066cc;
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+}
+
+.btn-primary {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #003d7a, #0066cc);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
+}
+
+.btn-secondary {
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.error-message {
+  color: #d32f2f;
+  background: #ffebee;
+  padding: 10px;
+  border-radius: 6px;
+  margin-top: 15px;
+  text-align: center;
+  display: none;
+}
+
+.error-message:not(:empty) {
+  display: block;
+}
+
+.test-credentials {
+  margin-top: 25px;
+  padding: 15px;
+  background: #f5f5f5;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.test-credentials p {
+  font-weight: bold;
+  margin-bottom: 8px;
+  color: #003d7a;
+}
+
+.test-credentials ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.test-credentials li {
+  padding: 4px 0;
+  color: #666;
+  font-family: monospace;
+}
 @media (max-width: 768px) {
   .header-content {
     flex-direction: column;

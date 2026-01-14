@@ -1,13 +1,126 @@
+// Authentication state
+let authToken = localStorage.getItem('authToken');
+let currentUser = null;
+
 document.addEventListener("DOMContentLoaded", () => {
   const capabilitiesList = document.getElementById("capabilities-list");
   const capabilitySelect = document.getElementById("capability");
   const registerForm = document.getElementById("register-form");
   const messageDiv = document.getElementById("message");
+  const loginModal = document.getElementById("login-modal");
+  const loginForm = document.getElementById("login-form");
+  const logoutBtn = document.getElementById("logout-btn");
+
+  // Check for existing session
+  const storedUser = localStorage.getItem('currentUser');
+  if (authToken && storedUser) {
+    currentUser = JSON.parse(storedUser);
+    showApp();
+  } else {
+    showLogin();
+  }
+
+  // Login form handler
+  loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("login-email").value;
+    const password = document.getElementById("login-password").value;
+    await login(email, password);
+  });
+
+  // Logout handler
+  logoutBtn.addEventListener("click", logout);
+
+  // Function to show login modal
+  function showLogin() {
+    loginModal.style.display = "flex";
+    document.getElementById("user-info").style.display = "none";
+    document.querySelector("main").style.display = "none";
+  }
+
+  // Function to show main app
+  function showApp() {
+    loginModal.style.display = "none";
+    document.getElementById("user-info").style.display = "flex";
+    document.querySelector("main").style.display = "block";
+    updateUserInfo();
+    fetchCapabilities();
+  }
+
+  // Login function
+  async function login(email, password) {
+    const loginError = document.getElementById("login-error");
+    try {
+      const formData = new URLSearchParams();
+      formData.append('username', email);
+      formData.append('password', password);
+
+      const response = await fetch('/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error('Invalid credentials');
+      }
+
+      const data = await response.json();
+      authToken = data.access_token;
+      currentUser = data.user;
+      
+      localStorage.setItem('authToken', authToken);
+      localStorage.setItem('currentUser', JSON.stringify(currentUser));
+
+      loginError.textContent = '';
+      showApp();
+    } catch (error) {
+      loginError.textContent = 'Invalid email or password';
+      console.error('Login error:', error);
+    }
+  }
+
+  // Logout function
+  function logout() {
+    authToken = null;
+    currentUser = null;
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('currentUser');
+    showLogin();
+    capabilitiesList.innerHTML = '';
+    capabilitySelect.innerHTML = '<option value="">-- Select a capability --</option>';
+  }
+
+  // Update user info display
+  function updateUserInfo() {
+    if (currentUser) {
+      document.getElementById("user-name").textContent = currentUser.full_name;
+      document.getElementById("user-role").textContent = `(${currentUser.role})`;
+    }
+  }
 
   // Function to fetch capabilities from API
   async function fetchCapabilities() {
+    if (!authToken) {
+      showLogin();
+      return;
+    }
+
     try {
-      const response = await fetch("/capabilities");
+      const response = await fetch("/capabilities", {
+        headers: {
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
+
+      if (response.status === 401) {
+        // Token expired
+        logout();
+        return;
+      }
+
       const capabilities = await response.json();
 
       // Clear loading message
@@ -28,10 +141,17 @@ document.addEventListener("DOMContentLoaded", () => {
               <h5>Registered Consultants:</h5>
               <ul class="consultants-list">
                 ${details.consultants
-                  .map(
-                    (email) =>
-                      `<li><span class="consultant-email">${email}</span><button class="delete-btn" data-capability="${name}" data-email="${email}">❌</button></li>`
-                  )
+                  .map((email) => {
+                    // Only show delete button for managers and above
+                    const canDelete = currentUser && 
+                      (currentUser.role === 'Partner' || 
+                       currentUser.role === 'ManagingDirector' || 
+                       currentUser.role === 'SeniorManager');
+                    return `<li>
+                      <span class="consultant-email">${email}</span>
+                      ${canDelete ? `<button class="delete-btn" data-capability="${name}" data-email="${email}">❌</button>` : ''}
+                    </li>`;
+                  })
                   .join("")}
               </ul>
             </div>`
@@ -71,6 +191,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Handle unregister functionality
   async function handleUnregister(event) {
+    if (!authToken) {
+      showLogin();
+      return;
+    }
+
     const button = event.target;
     const capability = button.getAttribute("data-capability");
     const email = button.getAttribute("data-email");
@@ -82,6 +207,9 @@ document.addEventListener("DOMContentLoaded", () => {
         )}/unregister?email=${encodeURIComponent(email)}`,
         {
           method: "DELETE",
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
         }
       );
 
@@ -116,8 +244,20 @@ document.addEventListener("DOMContentLoaded", () => {
   registerForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
+    if (!authToken) {
+      showLogin();
+      return;
+    }
+
     const email = document.getElementById("email").value;
     const capability = document.getElementById("capability").value;
+
+    // Check if consultants can only register themselves
+    if (currentUser.role === 'Consultant' && email !== currentUser.email) {
+      messageDiv.textContent = "Consultants can only register themselves";
+      messageDiv.className = "error";
+      return;
+    }
 
     try {
       const response = await fetch(
@@ -126,6 +266,9 @@ document.addEventListener("DOMContentLoaded", () => {
         )}/register?email=${encodeURIComponent(email)}`,
         {
           method: "POST",
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
         }
       );
 
