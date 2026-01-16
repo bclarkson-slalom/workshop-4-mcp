@@ -5,14 +5,50 @@ A FastAPI application that enables Slalom consultants to register their
 capabilities and manage consulting expertise across the organization.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from datetime import timedelta
 import os
 from pathlib import Path
+from auth import (
+    authenticate_user,
+    create_access_token,
+    get_current_user,
+    get_admin_user,
+    get_consultant_user,
+    User,
+    ACCESS_TOKEN_EXPIRE_MINUTES
+)
 
 app = FastAPI(title="Slalom Capabilities Management API",
               description="API for managing consulting capabilities and consultant expertise")
+
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify exact origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Pydantic models for request/response
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str
+    user_email: str
+    user_role: str
+    full_name: str
+
+class RegisterRequest(BaseModel):
+    email: str
 
 # Mount the static files directory
 current_dir = Path(__file__).parent
@@ -110,14 +146,64 @@ def root():
     return RedirectResponse(url="/static/index.html")
 
 
+# Authentication endpoints
+@app.post("/auth/login", response_model=LoginResponse)
+def login(login_data: LoginRequest):
+    """Authenticate user and return JWT token"""
+    user = authenticate_user(login_data.email, login_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect email or password"
+        )
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.email, "role": user.role},
+        expires_delta=access_token_expires
+    )
+    
+    return LoginResponse(
+        access_token=access_token,
+        token_type="bearer",
+        user_email=user.email,
+        user_role=user.role,
+        full_name=user.full_name
+    )
+
+
+@app.get("/auth/me")
+def get_current_user_info(current_user: User = Depends(get_current_user)):
+    """Get current user information"""
+    return {
+        "email": current_user.email,
+        "role": current_user.role,
+        "full_name": current_user.full_name
+    }
+
+
 @app.get("/capabilities")
-def get_capabilities():
+def get_capabilities(current_user: User = Depends(get_current_user)):
+    """Get all capabilities - requires authentication"""
     return capabilities
 
 
 @app.post("/capabilities/{capability_name}/register")
-def register_for_capability(capability_name: str, email: str):
-    """Register a consultant for a capability"""
+def register_for_capability(
+    capability_name: str, 
+    register_data: RegisterRequest,
+    current_user: User = Depends(get_consultant_user)
+):
+    """Register a consultant for a capability - requires consultant or admin role"""
+    email = register_data.email
+    
+    # Consultants can only register themselves, admins can register anyone
+    if current_user.role == "consultant" and current_user.email != email:
+        raise HTTPException(
+            status_code=403,
+            detail="Consultants can only register themselves"
+        )
+    
     # Validate capability exists
     if capability_name not in capabilities:
         raise HTTPException(status_code=404, detail="Capability not found")
@@ -134,12 +220,19 @@ def register_for_capability(capability_name: str, email: str):
 
     # Add consultant
     capability["consultants"].append(email)
-    return {"message": f"Registered {email} for {capability_name}"}
+    return {
+        "message": f"Registered {email} for {capability_name}",
+        "registered_by": current_user.email
+    }
 
 
 @app.delete("/capabilities/{capability_name}/unregister")
-def unregister_from_capability(capability_name: str, email: str):
-    """Unregister a consultant from a capability"""
+def unregister_from_capability(
+    capability_name: str, 
+    email: str,
+    current_user: User = Depends(get_admin_user)
+):
+    """Unregister a consultant from a capability - requires admin role"""
     # Validate capability exists
     if capability_name not in capabilities:
         raise HTTPException(status_code=404, detail="Capability not found")
@@ -156,4 +249,7 @@ def unregister_from_capability(capability_name: str, email: str):
 
     # Remove consultant
     capability["consultants"].remove(email)
-    return {"message": f"Unregistered {email} from {capability_name}"}
+    return {
+        "message": f"Unregistered {email} from {capability_name}",
+        "unregistered_by": current_user.email
+    }
