@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login - Slalom Capabilities Management</title>
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      .login-container {
+        max-width: 400px;
+        margin: 80px auto;
+        padding: 40px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      .login-container h2 {
+        text-align: center;
+        color: #003d7a;
+        margin-bottom: 30px;
+      }
+
+      .login-mascot {
+        display: block;
+        margin: 0 auto 20px;
+        width: 120px;
+        height: 120px;
+      }
+
+      .demo-credentials {
+        background: #f0f7ff;
+        border: 1px solid #0066cc;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+        font-size: 0.9em;
+      }
+
+      .demo-credentials h4 {
+        margin: 0 0 10px 0;
+        color: #003d7a;
+      }
+
+      .demo-credentials ul {
+        margin: 5px 0;
+        padding-left: 20px;
+      }
+
+      .demo-credentials code {
+        background: white;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: monospace;
+      }
+
+      .error-message {
+        background: #fee;
+        border: 1px solid #fcc;
+        color: #c33;
+        padding: 10px;
+        border-radius: 6px;
+        margin-bottom: 15px;
+        display: none;
+      }
+
+      .error-message.show {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="login-container">
+      <img src="https://colby-timm.github.io/images/byte-teacher.png" alt="Byte mascot" class="login-mascot" />
+      <h2>Slalom Capabilities Login</h2>
+      
+      <div class="demo-credentials">
+        <h4>🔐 Demo Credentials</h4>
+        <ul>
+          <li><strong>Admin:</strong> <code>admin@slalom.com</code> / <code>admin123</code></li>
+          <li><strong>Consultant:</strong> <code>alice.smith@slalom.com</code> / <code>consultant123</code></li>
+          <li><strong>Read-only:</strong> <code>guest@slalom.com</code> / <code>guest123</code></li>
+        </ul>
+      </div>
+
+      <div id="error-message" class="error-message"></div>
+
+      <form id="login-form">
+        <div class="form-group">
+          <label for="email">Email:</label>
+          <input 
+            type="email" 
+            id="email" 
+            required 
+            placeholder="your-email@slalom.com"
+            autocomplete="email"
+          />
+        </div>
+        <div class="form-group">
+          <label for="password">Password:</label>
+          <input 
+            type="password" 
+            id="password" 
+            required 
+            placeholder="Enter your password"
+            autocomplete="current-password"
+          />
+        </div>
+        <button type="submit">Login</button>
+      </form>
+    </div>
+
+    <script>
+      const loginForm = document.getElementById('login-form');
+      const errorMessage = document.getElementById('error-message');
+
+      loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        
+        try {
+          const response = await fetch('/auth/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, password }),
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Login failed');
+          }
+
+          const data = await response.json();
+          
+          // Store token and user info
+          localStorage.setItem('access_token', data.access_token);
+          localStorage.setItem('user_email', data.user_email);
+          localStorage.setItem('user_role', data.user_role);
+          localStorage.setItem('user_name', data.full_name);
+          
+          // Redirect to main page
+          window.location.href = '/static/index.html';
+          
+        } catch (error) {
+          errorMessage.textContent = error.message;
+          errorMessage.classList.add('show');
+          
+          // Hide error after 5 seconds
+          setTimeout(() => {
+            errorMessage.classList.remove('show');
+          }, 5000);
+        }
+      });
+    </script>
+  </body>
+</html>

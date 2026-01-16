@@ -3,11 +3,63 @@ document.addEventListener("DOMContentLoaded", () => {
   const capabilitySelect = document.getElementById("capability");
   const registerForm = document.getElementById("register-form");
   const messageDiv = document.getElementById("message");
+  const userDisplay = document.getElementById("user-display");
+  const logoutBtn = document.getElementById("logout-btn");
+
+  // Check authentication
+  const token = localStorage.getItem('access_token');
+  const userEmail = localStorage.getItem('user_email');
+  const userRole = localStorage.getItem('user_role');
+  const userName = localStorage.getItem('user_name');
+
+  // Redirect to login if not authenticated
+  if (!token) {
+    window.location.href = '/static/login.html';
+    return;
+  }
+
+  // Display user info
+  if (userName && userRole) {
+    userDisplay.textContent = `${userName} (${userRole})`;
+  }
+
+  // Logout functionality
+  logoutBtn.addEventListener('click', () => {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('user_email');
+    localStorage.removeItem('user_role');
+    localStorage.removeItem('user_name');
+    window.location.href = '/static/login.html';
+  });
+
+  // Helper function to make authenticated API calls
+  async function authenticatedFetch(url, options = {}) {
+    const defaultOptions = {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    };
+    
+    const response = await fetch(url, { ...options, ...defaultOptions });
+    
+    // If unauthorized, redirect to login
+    if (response.status === 401) {
+      localStorage.clear();
+      window.location.href = '/static/login.html';
+      return null;
+    }
+    
+    return response;
+  }
 
   // Function to fetch capabilities from API
   async function fetchCapabilities() {
     try {
-      const response = await fetch("/capabilities");
+      const response = await authenticatedFetch("/capabilities");
+      if (!response) return;
+      
       const capabilities = await response.json();
 
       // Clear loading message
@@ -21,7 +73,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const availableCapacity = details.capacity || 0;
         const currentConsultants = details.consultants ? details.consultants.length : 0;
 
-        // Create consultants HTML with delete icons
+        // Create consultants HTML with delete icons (only show for admins)
         const consultantsHTML =
           details.consultants && details.consultants.length > 0
             ? `<div class="consultants-section">
@@ -30,7 +82,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 ${details.consultants
                   .map(
                     (email) =>
-                      `<li><span class="consultant-email">${email}</span><button class="delete-btn" data-capability="${name}" data-email="${email}">❌</button></li>`
+                      `<li>
+                        <span class="consultant-email">${email}</span>
+                        ${userRole === 'admin' ? `<button class="delete-btn" data-capability="${name}" data-email="${email}">❌</button>` : ''}
+                      </li>`
                   )
                   .join("")}
               </ul>
@@ -69,14 +124,23 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Handle unregister functionality
+  // Handle unregister functionality (admin only)
   async function handleUnregister(event) {
+    if (userRole !== 'admin') {
+      alert('Only administrators can unregister consultants');
+      return;
+    }
+
     const button = event.target;
     const capability = button.getAttribute("data-capability");
     const email = button.getAttribute("data-email");
 
+    if (!confirm(`Are you sure you want to unregister ${email} from ${capability}?`)) {
+      return;
+    }
+
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `/capabilities/${encodeURIComponent(
           capability
         )}/unregister?email=${encodeURIComponent(email)}`,
@@ -85,6 +149,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       );
 
+      if (!response) return;
       const result = await response.json();
 
       if (response.ok) {
@@ -116,19 +181,32 @@ document.addEventListener("DOMContentLoaded", () => {
   registerForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
+    // Only consultants and admins can register
+    if (userRole === 'readonly') {
+      messageDiv.textContent = "Read-only users cannot register for capabilities";
+      messageDiv.className = "error";
+      messageDiv.classList.remove("hidden");
+      return;
+    }
+
     const email = document.getElementById("email").value;
     const capability = document.getElementById("capability").value;
 
+    // Pre-fill with current user's email for consultants
+    if (userRole === 'consultant') {
+      document.getElementById("email").value = userEmail;
+    }
+
     try {
-      const response = await fetch(
-        `/capabilities/${encodeURIComponent(
-          capability
-        )}/register?email=${encodeURIComponent(email)}`,
+      const response = await authenticatedFetch(
+        `/capabilities/${encodeURIComponent(capability)}/register`,
         {
           method: "POST",
+          body: JSON.stringify({ email }),
         }
       );
 
+      if (!response) return;
       const result = await response.json();
 
       if (response.ok) {
